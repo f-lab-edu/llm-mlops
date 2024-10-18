@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "llm-mlops"
+version = "0.1.0"
+description = ""
+authors = ["tmdqja75 <tmdqja75@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+langchain = "^0.3.2"
+python-dotenv = "^1.0.1"
+langchain-community = "^0.3.1"
+langchain-openai = "^0.2.1"
+langchainhub = "^0.1.21"
+bs4 = "^0.0.2"
+chromadb = "^0.5.11"
+langgraph = "^0.2.34"
+opensearch-py = "^2.7.1"
+arxiv = "^2.1.3"
+praw = "^7.7.1"
+requests = "^2.32.3"
+selenium = "^4.25.0"
+langchain-huggingface = "^0.1.0"
+faiss-cpu = "^1.9.0"
+langchain-ollama = "^0.2.0"
+tavily-python = "^0.5.0"
+
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.5"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
