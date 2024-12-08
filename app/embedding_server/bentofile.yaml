@@ -1,0 +1,17 @@
+service: 'service:SentenceEmbeddingService'
+labels:
+  owner: sb-ha
+  project: llm-mlops
+include:
+  - service.py
+python:
+  packages:
+    - transformers
+    - python-dotenv
+    - sentence-transformers
+envs:
+  - name: "EMBEDDING_MODEL"
+    value: "dunzhang/stella_en_1.5B_v5"
+docker:
+  distro: debian
+  python_version: "3.10"
