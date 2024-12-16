@@ -8,8 +8,6 @@ echo "------------------"
 echo $BENTO_CONTAINER_TAG
 echo "------------------"
 
-bentoml containerize --opt platform=linux/amd64 $BENTO_CONTAINER_TAG
-
 # system이 MacOS인지 확인합니다
 if [[ "$(uname)" == "Darwin" ]]; then
     # Apple Silicon에서 돌고 있는지 확인합니다

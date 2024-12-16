@@ -9,8 +9,14 @@ python:
     - transformers
     - python-dotenv
     - torch
+    - langchain-openai
+    - langchain-huggingface
 envs:
   - name: "LLM_MODEL"
-    value: "meta-llama/Llama-3.2-1B"
+    value: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
   - name: "MAX_TOKENS"
     value: 256
+  - name: "USE_OPENAI"
+    value: True
+  - name: "OPENAI_MODEL"
+    value: "gpt-4o-mini"

@@ -1,10 +1,14 @@
-import os
-import bentoml
-import torch
 import logging
+import os
+
+import bentoml
+from bentoml.exceptions import InvalidArgument, NotFound
 from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
+from graph import build_graph
+from utils.env_setup import get_device
 
 load_dotenv()
 # Bentoml 서버 로깅 설정
@@ -16,44 +20,54 @@ class LlmGennerationParams(BaseModel):
     prompt: str = Field(
         default="What is the tallest building in the world?", description="Prompt Text"
     )
-    temperature: float = Field(
-        default=0.1, description="LLM Sampling Temperature (0-1)"
-    )
 
 
 # Define the BentoML Service
 @bentoml.service
 class LlmService:
     def __init__(self):
-        from transformers import AutoTokenizer, AutoModelForCausalLM
+        from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
+        from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
-        # API 서버에 가용 가능한 GPU를 설정
-        if torch.cuda.is_available():
-            self.device = torch.device("cuda")
-            bentoml_logger.info("Using CUDA for inference.")
+        # OpenAI 모델 사용 여부 예외처리
+        use_openai = os.getenv("USE_OPENAI").lower()
+        if use_openai not in ["true", "false"]:
+            raise InvalidArgument("OpenAI 사용여부 설정이 제대로 되있지 않습니다.")
 
-        elif torch.backends.mps.is_available():
-            self.device = torch.device("mps")
-            bentoml_logger.info("Using MPS (Apple Silicon) for inference.")
+        if use_openai == "true":
+            bentoml_logger.info("Using OpenAI Model")
+            self.model = ChatOpenAI(
+                model=os.getenv("OPENAI_MODEL"), max_tokens=os.getenv("MAX_TOKENS")
+            )
         else:
-            # 사용 가능한 GPU가 없다면 cpu로 inference 대체
-            self.device = torch.device("cpu")
-            bentoml_logger.info("Using CPU for inference.")
+            self.device = get_device()
+            tokenizer = AutoTokenizer.from_pretrained(os.getenv("LLM_MODEL"))
+            model = AutoModelForCausalLM.from_pretrained(os.getenv("LLM_MODEL")).to(
+                self.device
+            )
+            model.generation_config.pad_token_id = tokenizer.eos_token_id
 
-        # tokenizer/LLM 초기화
-        self.tokenizer = AutoTokenizer.from_pretrained(os.getenv("LLM_MODEL"))
-        self.model = AutoModelForCausalLM.from_pretrained(os.getenv("LLM_MODEL")).to(
-            self.device
-        )
-        # LLM모델이 open-end generation하지 않도록 padding token ID를 end-of-sentence token ID와 같게 설정
-        self.model.generation_config.pad_token_id = (
-            self.model.generation_config.eos_token_id
-        )
+            if tokenizer.chat_template is None:
+                raise NotFound(
+                    "Huggingface tokenizer에 chat_template이 설정되지 않았습니다! tokenizer_config.json에 chat_template이 있는지 확인해주세요."
+                )
 
-        bentoml_logger.info(f"""{os.getenv("LLM_MODEL")} loaded to {self.device}""")
+            pipe = pipeline(
+                "text-generation",
+                model=model,
+                tokenizer=tokenizer,
+                max_new_tokens=int(os.getenv("MAX_TOKENS")),
+                device=self.device,
+            )
+
+            llm = HuggingFacePipeline(pipeline=pipe)
+            self.model = ChatHuggingFace(llm=llm)
+            bentoml_logger.info(f"""{os.getenv("LLM_MODEL")} loaded to {self.device}""")
+
+        self.graph = build_graph(self.model)
 
     @bentoml.api
-    def generate(self, params: LlmGennerationParams) -> str:
+    def generate(self, params: LlmGennerationParams) -> dict:
         """prompt를 입력받으면, __init__에서 설정한 tokenizer과 LLM 모델로 답변을 생성합니다
 
         Args:
@@ -64,19 +78,13 @@ class LlmService:
             str: LLM으로 생성된 prompt에 대한 답변
         """
         prompt = params.prompt
-        temperature = params.temperature
 
-        inputs = self.tokenizer(prompt, return_tensors="pt")
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        inputs = {"query": prompt}
+        for output in self.graph.stream(inputs):
+            for key, value in output.items():
+                bentoml_logger.info(f"Output from node '{key}':")
+                bentoml_logger.info("---")
+                bentoml_logger.info(value)
+            bentoml_logger.info("\n---\n")
 
-        # Generate text
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                temperature=temperature,
-                max_new_tokens=int(os.getenv("MAX_TOKENS")),
-            )
-
-        # Decode the generated text
-        generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return generated_text
+        return value
