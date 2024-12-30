@@ -87,4 +87,4 @@ class LlmService:
                 bentoml_logger.info(value)
             bentoml_logger.info("\n---\n")
 
-        return value
+        return {"success": True}

@@ -37,6 +37,8 @@ services:
       OPENSEARCH_HOSTS: '["https://opensearch-node:9200"]' # OpenSearch Dashboards가 쿼리할 OpenSearch 노드 정의
     networks:
       - opensearch-net
+    depends_on:
+      - opensearch-node
 volumes:
   opensearch-data:
 
